@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
     int sleep_time = 300;
     int c;
     opterr = 0;
-    while ((c = getopt(argc,argv,"t:")) != -1)
+    while ((c = getopt(argc,argv,"t:")) != -1){
         switch (c)
         {
         case 't':
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
         default:
             exit(EXIT_FAILURE);
         }
-     
+    }
 
     while(1){
         sleep(sleep_time);
