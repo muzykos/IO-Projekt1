@@ -6,9 +6,11 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <getopt.h>
 #include <syslog.h>
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
     pid_t pid, sid;
     pid = fork();
@@ -42,8 +44,32 @@ int main(int argc, char const *argv[])
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
+    // specific init
+    int sleep_time = 300;
+    int c;
+    opterr = 0;
+    while ((c = getopt(argc,argv,"t:")) != -1)
+        switch (c)
+        {
+        case 't':
+            syslog(LOG_INFO,"Set Sleeptime to %d seconds",atoi(optarg));
+            sleep_time = atoi(optarg);
+            break;
+        case '?':
+            if(optopt == 't')
+                syslog(LOG_INFO, "Option -%c requires argument. ",optopt);
+            else if(isprint(optopt))
+                syslog(LOG_INFO, "Unknown opt '-%c'.",optopt);
+            else
+                syslog(LOG_INFO, "unknown opt char '\\x%x'",optopt);
+            exit(EXIT_FAILURE);
+        default:
+            exit(EXIT_FAILURE);
+        }
+     
+
     while(1){
-        //do
+        sleep(sleep_time);
     }
 
 
