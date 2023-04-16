@@ -1,4 +1,4 @@
-# IO-Projekt1
+# SO-Projekt1
 1. Demon monitorujący katalog
 
 Celem usługi jest monitorowanie zmian plików w podanym katalogu. Program startowy otrzymuje co najmniej dwa argumenty: ścieżkę źródłową i ścieżkę docelowa . Jeżeli któraś ze ścieżek nie jest katalogiem program powraca natychmiast z komunikatem błędu. W przeciwnym wypadku staje się demonem. Demon wykonuje następujące czynności: 
