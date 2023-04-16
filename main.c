@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
     }
 
     while(1){
+        syslog(LOG_INFO,"entered loop successfuly");
         sleep(sleep_time);
     }
 
