@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
@@ -8,10 +9,38 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <getopt.h>
-#include <syslog.h>
 
 int main(int argc, char *argv[])
 {
+    //check argument amount
+    if (argc < 3)
+    {
+        perror("argument amount error");
+        exit(EXIT_FAILURE);
+    }
+    //check whether argument 2 is a directory
+    DIR* dir1 = opendir(argv[1]);
+    if(dir1){
+        closedir(dir1);
+    }else if(ENOENT == errno){
+        perror("directory 1 doesn't exist");
+        exit(EXIT_FAILURE);
+    }else{
+        perror("can't access directory 1");
+        exit(EXIT_FAILURE);
+    }
+    //check whether arg 3 is directory
+    DIR* dir2 = opendir(argv[2]);
+    if(dir2){
+        closedir(dir2);
+    }else if(ENOENT == errno){
+        perror("directory 2 doesn't exist");
+        exit(EXIT_FAILURE);
+    }else{
+        perror("can't access directory 2");
+        exit(EXIT_FAILURE);
+    }
+    //create child
     pid_t pid, sid;
     pid = fork();
     if(pid < 0){
