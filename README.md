@@ -1,4 +1,4 @@
-# IO-Projekt1
+# SO-Projekt1
 1. Demon monitorujący katalog
 
 Celem usługi jest monitorowanie zmian plików w podanym katalogu.
