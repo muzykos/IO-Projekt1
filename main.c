@@ -81,7 +81,8 @@ int main(int argc, char *argv[])
     close(STDERR_FILENO);
 
     // specific init
-    int sleep_time = 300;
+    int sleep_time = 100;
+    int *stop_singal = 0;
     int c;
     opterr = 0;
     while ((c = getopt(argc,argv,"t:")) != -1){
@@ -107,6 +108,12 @@ int main(int argc, char *argv[])
     int ndir_inp = 0, ndir_out = 0;
     size_t it = 0;
 
+
+    if(signal(SIGUSR1, handlerSIGUSR1)!=0){
+        syslog(LOG_INFO,"failed signal function: %s",errno);
+        exit(EXIT_FAILURE);
+    }
+
     syslog(LOG_INFO,"initialised successfully");
     while(1){
         if((ndir_inp = scandir(argv[1],&namelist_inp, sdfilt, alphasort))<0){
@@ -127,7 +134,15 @@ int main(int argc, char *argv[])
             {
                 syslog(LOG_INFO,"file doesn't exist nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
             }
-        sleep(sleep_time);
+        for(it = 0; it < sleep_time/10; it++){
+            if(stop_singal==0){
+                sleep(sleep_time/10);
+            }
+            else{
+                break;
+            }
+        }
+        
     }
     exit(EXIT_SUCCESS);
 }
@@ -153,5 +168,6 @@ int check_existance (char *str,struct dirent **namelist,int size){
 }
 
 void handlerSIGUSR1(int sigma){
-
+    //jak zabić sleep'a?
+    // zmiana globalnej
 }
