@@ -15,8 +15,10 @@
 int sdfilt (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
 
-void handlerSIGUSR1(int sigma);
+void handlerSIGUSR1(int signum);
 
+// z niechęcią to robie ale niech będzie na razie
+volatile int stop_signal = 0;
 
 int main(int argc, char *argv[])
 {
@@ -46,6 +48,15 @@ int main(int argc, char *argv[])
         perror("can't access directory 2");
         exit(EXIT_FAILURE);
     }
+
+
+    // error checking for signal creation
+    if(signal(SIGUSR1, handlerSIGUSR1)!=0){
+        syslog(LOG_INFO,"failed signal function: %s",errno);
+        exit(EXIT_FAILURE);
+    }
+
+
     //create child
     pid_t pid, sid;
     pid = fork();
@@ -82,7 +93,6 @@ int main(int argc, char *argv[])
 
     // specific init
     int sleep_time = 100;
-    int *stop_singal = 0;
     int c;
     opterr = 0;
     while ((c = getopt(argc,argv,"t:")) != -1){
@@ -107,12 +117,7 @@ int main(int argc, char *argv[])
     struct dirent **namelist_inp = NULL, **namelist_out = NULL;
     int ndir_inp = 0, ndir_out = 0;
     size_t it = 0;
-
-
-    if(signal(SIGUSR1, handlerSIGUSR1)!=0){
-        syslog(LOG_INFO,"failed signal function: %s",errno);
-        exit(EXIT_FAILURE);
-    }
+    int timer;
 
     syslog(LOG_INFO,"initialised successfully");
     while(1){
@@ -134,13 +139,13 @@ int main(int argc, char *argv[])
             {
                 syslog(LOG_INFO,"file doesn't exist nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
             }
-        for(it = 0; it < sleep_time/10; it++){
-            if(stop_singal==0){
-                sleep(sleep_time/10);
-            }
-            else{
-                break;
-            }
+        timer = 0;
+        while(stop_signal==0 && timer < sleep_time){
+            sleep(1);
+            timer++;
+        }
+        if(stop_signal!=0){
+            stop_signal = 0;
         }
         
     }
@@ -167,7 +172,7 @@ int check_existance (char *str,struct dirent **namelist,int size){
     return 0;
 }
 
-void handlerSIGUSR1(int sigma){
-    //jak zabić sleep'a?
-    // zmiana globalnej
+void handlerSIGUSR1(int signum){
+    syslog(LOG_INFO,"SIGUSR1 handler activation");
+    stop_signal = 1;
 }
