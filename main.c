@@ -10,9 +10,13 @@
 #include <ctype.h>
 #include <getopt.h>
 #include <string.h>
+#include <signal.h>
 
 int sdfilt (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
+
+void handlerSIGUSR1(int sigma);
+
 
 int main(int argc, char *argv[])
 {
@@ -146,4 +150,8 @@ int check_existance (char *str,struct dirent **namelist,int size){
         }
     }
     return 0;
+}
+
+void handlerSIGUSR1(int sigma){
+
 }
