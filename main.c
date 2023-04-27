@@ -12,6 +12,12 @@
 #include <string.h>
 #include <signal.h>
 
+
+
+//Źródła
+//https://4programmers.net/Forum/C_i_C++/289018-daemon_synchronizujacy_dwa_katalogi
+
+
 int sdfilt (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
 
