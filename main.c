@@ -24,57 +24,7 @@
 
 int sdfilt (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
-
-//void sha256_string(char* input, char outputBuffer[65]); won
-// int sha256_EVP(char* input){
-//     EVP_MD_CTX * evpCtx = EVP_MD_CTX_new ();
-//     EVP_DigestInit_ex (evpCtx, EVP_sha256 (), NULL);    
-//     unsigned int len = strlen (input);
-
-//     EVP_DigestUpdate (evpCtx, input, len);
-//     unsigned char result [32] = {0};
-//     EVP_DigestFinal_ex (evpCtx, result, & len);
-//     return result;
-// }
-
-unsigned char* sha256_EVP(char* input){
-
-    unsigned char output_hash[SHA256_DIGEST_LENGTH];
-    unsigned int output_hash_len = 32;
-    EVP_MD_CTX *hash_context = EVP_MD_CTX_new();
-    if (!hash_context) {
-        fprintf(stderr, "Error creating hash context\n");
-        exit(EXIT_FAILURE);
-    }
-    if (!EVP_DigestInit_ex(hash_context, EVP_sha256(), NULL)) {
-        fprintf(stderr, "Error initializing hash context\n");
-        EVP_MD_CTX_free(hash_context);
-        exit(EXIT_FAILURE);
-    }
-    if (!EVP_DigestUpdate(hash_context, input, strlen(input))) {
-        fprintf(stderr, "Error updating hash context\n");
-        EVP_MD_CTX_free(hash_context);
-        exit(EXIT_FAILURE);
-    }
-    if (!EVP_DigestFinal_ex(hash_context, output_hash, &output_hash_len)) {
-        fprintf(stderr, "Error finalizing hash context\n");
-        EVP_MD_CTX_free(hash_context);
-        exit(EXIT_FAILURE);
-    }
-    EVP_MD_CTX_free(hash_context);
-    return output_hash;
-}
-
-char md5_hash(char* str){
-    unsigned char *MD5(const unsigned char *d, unsigned long n, unsigned char *md);
-    int MD5_Init(MD5_CTX *c);
-    int MD5_Update(MD5_CTX *c, const void *str, unsigned long len);
-    int MD5_Final(char *md, MD5_CTX *c);
-    return md;
-
-}
-
-
+void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
 
 // z niechęcią to robie ale niech będzie na razie
@@ -152,7 +102,7 @@ int main(int argc, char *argv[])
     close(STDERR_FILENO);
 
     // specific init
-    int sleep_time = 5;
+    int sleep_time = 5,timer;
     int c;
     opterr = 0;
     while ((c = getopt(argc,argv,"t:")) != -1){
@@ -176,15 +126,14 @@ int main(int argc, char *argv[])
     }
 
 
-
+    //
     struct dirent **namelist_inp = NULL, **namelist_out = NULL;
     int ndir_inp = 0, ndir_out = 0;
     size_t it = 0;
-    int timer;
 
-    unsigned char resultT [SHA256_DIGEST_LENGTH] = {0};
+    //erquired for hashing
     OpenSSL_add_all_algorithms();
-
+    char md5[33];
 
     syslog(LOG_INFO,"initialised successfully");
     while(1){
@@ -200,16 +149,12 @@ int main(int argc, char *argv[])
         syslog(LOG_INFO,"Folders content scanned successfully");
 
 
-
         for (it = 0; it < ndir_inp; it++)
-            //syslog(LOG_INFO,"it value: %d ndir_inp value: %d", it, ndir_inp);
-            //syslog(LOG_INFO,"nazwa: %s, hasg: %d",namelist_inp[it]->d_name, sha256_EVP(namelist_inp[it]->d_name));
-            if(sdfilt(namelist_inp[it])){
-                EVP_Digest (namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), resultT, NULL, EVP_sha512 (), NULL);
-
-                syslog(LOG_INFO,"nazwa: %d", resultT);
-                
-            }
+            // core dumped while hashing 
+            // if(sdfilt(namelist_inp[it])==1){
+            //     MD5_hash(namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), md5);
+            //     syslog(LOG_INFO,"nazwa: %s hash: %s",namelist_inp[it]->d_name, md5);
+            // }
             
     
             if((check_existance(namelist_inp[it]->d_name,namelist_out,ndir_out)) == 1){
@@ -259,26 +204,17 @@ void handlerSIGUSR1(int signum){
     syslog(LOG_INFO,"SIGUSR1 handler activation");
     stop_signal = 1;
 }
-/*
-void sha256_string(char* input, char outputBuffer[65]) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256_CTX sha256;
-    
-    if(!SHA256_Init(&sha256)){
-        syslog(LOG_INFO,"SHA Initialization failed");
-        exit(EXIT_FAILURE);
+
+void MD5_hash(const char *data, int len, char *md5buf){
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    const EVP_MD *md = EVP_md5();
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned int md_len, i;
+    EVP_DigestInit_ex(mdctx, md, NULL);
+    EVP_DigestUpdate(mdctx, data, len);
+    EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    EVP_MD_CTX_free(mdctx);
+    for (i = 0; i < md_len; i++) {
+        snprintf(&(md5buf[i * 2]), 16 * 2, "%02x", md_value[i]);
     }
-    if(!SHA256_Update(&sha256, input, strlen(input))){
-        syslog(LOG_INFO,"SHA Update Failed");
-        exit(EXIT_FAILURE);
-    }
-    if(!SHA256_Final(hash, &sha256)){
-        syslog(LOG_INFO,"SHA Hashing Failed");
-        exit(EXIT_FAILURE);
-    }
-    for(int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        sprintf(outputBuffer + (i * 2), "%02x", hash[i]);
-    }
-    outputBuffer[64] = 0;
 }
-*/
