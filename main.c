@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syslog.h>
@@ -14,6 +15,7 @@
 #include <signal.h>
 #include <openssl/evp.h>
 #include <openssl/md5.h>
+#include <stdbool.h> 
 #include <time.h>
 
 #define SHA256_DIGEST_LENGTH 32
@@ -29,6 +31,8 @@ int check_existance (char *str,struct dirent **namelist,int size);
 void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
 void copyFileWriteRead(const char* source, const char* target);
+bool copyFolderContent(const char* source, const char* target);
+void addFileToPath(char* path, const char* source, const char *filename);
 
 // z niechęcią to robie ale niech będzie na razie
 volatile int stop_signal = 0;
@@ -39,6 +43,20 @@ int main(int argc, char *argv[])
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
 
+    char source_full_path[PATH_MAX+1];
+    char target_full_path[PATH_MAX+1];
+    if(!realpath(argv[1], source_full_path)){
+        perror("Path problem");
+        exit(EXIT_FAILURE);
+    }
+    if(!realpath(argv[2], target_full_path)){
+        perror("Path problem");
+        exit(EXIT_FAILURE);
+    }
+    syslog(LOG_INFO, "");
+    syslog(LOG_INFO, "");
+    syslog(LOG_INFO, "spath: %s", source_full_path);
+    syslog(LOG_INFO, "tpath: %s", target_full_path);
 
     //check argument amount
     if (argc < 3)
@@ -66,6 +84,9 @@ int main(int argc, char *argv[])
         perror("can't access directory 2");
         exit(EXIT_FAILURE);
     }
+
+
+
 
     // error checking for signal creation
     if(signal(SIGUSR1, handlerSIGUSR1)!=0){
@@ -138,19 +159,10 @@ int main(int argc, char *argv[])
 
     syslog(LOG_INFO,"initialised successfully");
 
-    // First scan copying all files to chossen directory
-    if((ndir_inp = scandir(argv[1],&namelist_inp, isFileFilter, alphasort))<0){
-        syslog(LOG_INFO,"failed scandir on folder %s",argv[1]);
+    // copying all files to choosen directory on startup
+    if(0!=copyFolderContent(source_full_path, target_full_path)){
+        syslog(LOG_INFO,"Error while handling folder copying");
         exit(EXIT_FAILURE);
-    }
-    for(it = 0; it<ndir_inp; it++){
-        if(isFileFilter(namelist_inp[it])){
-            //strcat(path_target,argv[2]);
-            //strcat(path_target,"/");
-            //strcat(path_target,namelist_inp[it]->d_name);
-            syslog(LOG_INFO,"path_target %s, argv[2]: %s, namelist: %s", path_target, argv[2], namelist_inp[it]->d_name);
-            //copyFileWriteRead(namelist_inp[it]->d_name, path_target);
-        }
     }
     
 
@@ -239,6 +251,7 @@ void MD5_hash(const char *data, int len, char *md5buf){
 }
 
 void copyFileWriteRead(const char* source, const char* target){
+    
     syslog(LOG_INFO,"coping");
     if(source==NULL){
         syslog(LOG_INFO,"Passed source path doesnt exist");
@@ -248,16 +261,24 @@ void copyFileWriteRead(const char* source, const char* target){
         syslog(LOG_INFO,"Passed target path doesnt exist");
         exit(EXIT_FAILURE);
     }
+    
     int fsource = open(source, O_RDONLY);
     int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    if(fsource==-1){syslog(LOG_INFO, "Could not open source file: %s", perror);exit(EXIT_FAILURE);}
-    if(ftarget==-1){syslog(LOG_INFO, "Could not open target file: %s", perror);exit(EXIT_FAILURE);}
-
+    syslog(LOG_INFO, "log %s OO %s", source, target);
+    if(fsource==-1){
+        syslog(LOG_INFO, "Could not open source file");
+        exit(EXIT_FAILURE);
+    }
+    if(ftarget==-1){
+        syslog(LOG_INFO, "Could not open target file");
+        exit(EXIT_FAILURE);
+    }
     unsigned char buffer[MAX_LENGTH]; // buffer 
     size_t bytes_read; // number of bytes remaning to be writeen
     int writtenChars; // number of butes writeen already
     char *bp; // pointer into write buffer
     while(1){
+        strcpy(buffer, "");
         bytes_read = read(fsource, buffer, sizeof(buffer));
         if(bytes_read>0){
             bp = buffer;
@@ -266,6 +287,7 @@ void copyFileWriteRead(const char* source, const char* target){
                     syslog(LOG_INFO, "Write to file Failed: %s", perror);
                     exit(EXIT_FAILURE);
                 }
+                syslog(LOG_INFO, "Bytes read value: %d", bytes_read);
                 bytes_read-=writtenChars;
                 bp+=writtenChars;
             }
@@ -282,8 +304,32 @@ void copyFileWriteRead(const char* source, const char* target){
     return;
 }
 
+void addFileToPath(char* path, const char* source, const char *filename){
+        strcpy(path, "");
+        strcat(path, source);
+        strcat(path, "/");
+        strcat(path, filename);
+}
+
 int lastModificationDate();
 
-void copyFolderContent(const char* source, const char* target){
-
+bool copyFolderContent(const char* source, const char* target){
+    DIR *dir;
+    struct dirent *dp;
+    char path_src[PATH_MAX+1];
+    char path_trg[PATH_MAX+1];
+    if((dir = opendir(source)) == NULL){
+        syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
+        return 1;
+    }
+    while((dp = readdir(dir))!=NULL){
+        if(isFileFilter(dp)){
+            addFileToPath(path_src,source,dp->d_name);
+            addFileToPath(path_trg,target,dp->d_name);
+            syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
+            copyFileWriteRead(path_src, path_trg);
+        }   
+    }
+    return 0;
 }
+
