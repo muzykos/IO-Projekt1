@@ -3,6 +3,7 @@
         "fcntl.h": "c",
         "sha.h": "c",
         "*.tcc": "c",
-        "fstream": "c"
+        "fstream": "c",
+        "typeinfo": "c"
     }
 }
