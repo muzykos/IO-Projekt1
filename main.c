@@ -150,11 +150,12 @@ int main(int argc, char *argv[])
 
 
         for (it = 0; it < ndir_inp; it++)
-            // core dumped while hashing 
+            // syslog(LOG_INFO, "it: %d", it);
             // if(sdfilt(namelist_inp[it])==1){
             //     MD5_hash(namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), md5);
             //     syslog(LOG_INFO,"nazwa: %s hash: %s",namelist_inp[it]->d_name, md5);
             // }
+            // syslog(LOG_INFO, "it2: %d", it);
             
     
             if((check_existance(namelist_inp[it]->d_name,namelist_out,ndir_out)) == 1){
@@ -217,4 +218,5 @@ void MD5_hash(const char *data, int len, char *md5buf){
     for (i = 0; i < md_len; i++) {
         snprintf(&(md5buf[i * 2]), 16 * 2, "%02x", md_value[i]);
     }
+    exit(EXIT_SUCCESS);
 }
