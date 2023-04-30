@@ -18,6 +18,7 @@
 #include <stdbool.h> 
 #include <time.h>
 
+
 #define SHA256_DIGEST_LENGTH 32
 #define MAX_LENGTH 1000
 
@@ -28,18 +29,23 @@
 
 int isFileFilter (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
+int getFileCreationTime(const char *path);
 void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
+void addFileToPath(char* path, const char* source, const char *filename);
 void copyFileWriteRead(const char* source, const char* target);
 bool copyFolderContent(const char* source, const char* target);
-void addFileToPath(char* path, const char* source, const char *filename);
+bool CheckIfFirstFileISYounger(const char *path1, const char *path2);
+bool CheckModifications(const char* source, const char* scan);
+bool CheckNewFiles(const char* source, const char* scan);
 
 // z niechęcią to robie ale niech będzie na razie
 volatile int stop_signal = 0;
 
 int main(int argc, char *argv[])
 {
-
+    time_t rawtime;
+    time( &rawtime );
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
 
@@ -57,7 +63,10 @@ int main(int argc, char *argv[])
     syslog(LOG_INFO, "");
     syslog(LOG_INFO, "spath: %s", source_full_path);
     syslog(LOG_INFO, "tpath: %s", target_full_path);
-
+    //syslog(LOG_INFO, "file10 test1: %d", getFileCreationTime("test1/file10.txt"));
+    //syslog(LOG_INFO, "file10 test2: %d", getFileCreationTime("test2/file10.txt"));
+    CheckIfFirstFileISYounger("test1/plik10.txt","test2/plik10.txt");
+    
     //check argument amount
     if (argc < 3)
     {
@@ -154,12 +163,14 @@ int main(int argc, char *argv[])
     //required for hashing
     OpenSSL_add_all_algorithms();
     char md5[33];
+    // nie wiem czy to jest używane do czegos
     char path_source[PATH_MAX];
     char path_target[PATH_MAX];
 
     syslog(LOG_INFO,"initialised successfully");
 
     // copying all files to choosen directory on startup
+    // this works 100%
     if(0!=copyFolderContent(source_full_path, target_full_path)){
         syslog(LOG_INFO,"Error while handling folder copying");
         exit(EXIT_FAILURE);
@@ -179,25 +190,38 @@ int main(int argc, char *argv[])
         }
         syslog(LOG_INFO,"Folders content scanned successfully");
 
+        if(1==CheckModifications(source_full_path, target_full_path)){
+            syslog(LOG_INFO,"Function CheckModifaction() Failed");
+            exit(EXIT_FAILURE);
+        }
+        if(1==CheckNewFiles(source_full_path, target_full_path)){
+            syslog(LOG_INFO,"Function CheckModifaction() Failed");
+            exit(EXIT_FAILURE);
+        }
 
-        for (it = 0; it < ndir_inp; it++){
-            if(isFileFilter(namelist_inp[it])==1){
-                MD5_hash(namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), md5);
-                //syslog(LOG_INFO,"nazwa: %s hash: %s",namelist_inp[it]->d_name, md5);
-            }
+        // if(1==CheckChanges(source_full_path, target_full_path)){
+        //     syslog(LOG_INFO,"Function CheckChanges() Failed");
+        //     exit(EXIT_FAILURE);
+        // }
+        
+        // for (it = 0; it < ndir_inp; it++){
+        //     // if(isFileFilter(namelist_inp[it])==1){
+        //     //     MD5_hash(namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), md5);
+        //     //     syslog(LOG_INFO,"nazwa: %s hash: %s",namelist_inp[it]->d_name, md5);
+        //     // }
             
 
-            if((check_existance(namelist_inp[it]->d_name,namelist_out,ndir_out)) == 1){
-                syslog(LOG_INFO,"file exists nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
+        //     if((check_existance(namelist_inp[it]->d_name,namelist_out,ndir_out)) == 1){
+        //         syslog(LOG_INFO,"file exists nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
                 
-            }else
-            {
-                syslog(LOG_INFO,"file doesn't exist nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
+        //     }else
+        //     {
+        //         syslog(LOG_INFO,"file doesn't exist nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
                 
-                // todo odczytajplik istniejący i zapisz go w lokalizacji docelowej
-                // log o zapisaniu pliku
-            }
-        }
+        //         // todo odczytajplik istniejący i zapisz go w lokalizacji docelowej
+        //         // log o zapisaniu pliku
+        //     }
+        // }
         timer = 0;
         syslog(LOG_INFO,"Attempting Loop");
         while(stop_signal==0 && timer < sleep_time){
@@ -208,7 +232,7 @@ int main(int argc, char *argv[])
             stop_signal = 0;
         }
     }
-    exit(EXIT_SUCCESS);
+    return 0;
 }
 
 int isFileFilter (const struct dirent *de){
@@ -252,7 +276,7 @@ void MD5_hash(const char *data, int len, char *md5buf){
 
 void copyFileWriteRead(const char* source, const char* target){
     
-    syslog(LOG_INFO,"coping");
+    syslog(LOG_INFO,"Copying file: %s", source);
     if(source==NULL){
         syslog(LOG_INFO,"Passed source path doesnt exist");
         exit(EXIT_FAILURE);
@@ -264,7 +288,7 @@ void copyFileWriteRead(const char* source, const char* target){
     
     int fsource = open(source, O_RDONLY);
     int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    syslog(LOG_INFO, "log %s OO %s", source, target);
+    //syslog(LOG_INFO, "log %s OO %s", source, target);
     if(fsource==-1){
         syslog(LOG_INFO, "Could not open source file");
         exit(EXIT_FAILURE);
@@ -287,7 +311,7 @@ void copyFileWriteRead(const char* source, const char* target){
                     syslog(LOG_INFO, "Write to file Failed: %s", perror);
                     exit(EXIT_FAILURE);
                 }
-                syslog(LOG_INFO, "Bytes read value: %d", bytes_read);
+                //syslog(LOG_INFO, "Bytes read value: %d", bytes_read);
                 bytes_read-=writtenChars;
                 bp+=writtenChars;
             }
@@ -305,13 +329,12 @@ void copyFileWriteRead(const char* source, const char* target){
 }
 
 void addFileToPath(char* path, const char* source, const char *filename){
-        strcpy(path, "");
-        strcat(path, source);
-        strcat(path, "/");
-        strcat(path, filename);
+        strcpy(path, "");           //clearing path
+        strcat(path, source);       // adding source folder
+        strcat(path, "/");          // adding '/'
+        strcat(path, filename);     // adding filename to path
 }
 
-int lastModificationDate();
 
 bool copyFolderContent(const char* source, const char* target){
     DIR *dir;
@@ -326,10 +349,104 @@ bool copyFolderContent(const char* source, const char* target){
         if(isFileFilter(dp)){
             addFileToPath(path_src,source,dp->d_name);
             addFileToPath(path_trg,target,dp->d_name);
-            syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
+            //syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
             copyFileWriteRead(path_src, path_trg);
         }   
     }
     return 0;
 }
 
+bool CheckModifications(const char* source, const char* scan){
+    DIR *dir_scan;
+    struct dirent *dp_scan, **dp_src = NULL;
+    int dir_src, c1, c2, file_found;
+    char path_src[PATH_MAX+1], path_scan[PATH_MAX+1];
+    
+    if((dir_scan = opendir(scan)) == NULL){
+        syslog(LOG_INFO, "Dictionary doesn't exist: %s", dir_scan);
+        return 1;
+    }
+    if((dir_src = scandir(source,&dp_src, isFileFilter, alphasort))<0){
+        syslog(LOG_INFO,"failed scandir on folder %s",source);
+        return 1;
+    }  
+
+    while((dp_scan = readdir(dir_scan))!=NULL){
+        if(isFileFilter(dp_scan)){
+            file_found = 0;
+            for(c1 = 0; c1<dir_src;c1++){
+                //syslog(LOG_INFO, "%s, %s", dp_scan->d_name, dp_src[c1]->d_name);
+                if(isFileFilter(dp_src[c1])&&(strcmp(dp_scan->d_name, dp_src[c1]->d_name)==0)){
+                    //syslog(LOG_INFO, "FOUND: %s, %s", dp_scan->d_name, dp_src[c1]->d_name);
+                    file_found = 1;
+                    addFileToPath(path_src,source,dp_src[c1]->d_name);  // adding files names to paths
+                    addFileToPath(path_scan,scan,dp_scan->d_name);
+                    if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
+                        copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                        syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
+                    }
+                    break;
+                }
+            }
+            if(file_found==0){
+                syslog(LOG_INFO,"File %s was not found in the source, removing it from watch", dp_scan->d_name);
+                addFileToPath(path_scan,scan,dp_scan->d_name);
+                if(remove(path_scan)==-1){
+                    syslog(LOG_INFO, "File deletion failed"); 
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+bool CheckNewFiles(const char* source, const char* scan){
+    DIR *dir_src;
+    struct dirent *dp_src, **dp_scan=NULL;
+    int dir_scan, c1, file_found;
+    char path_src[PATH_MAX+1], path_scan[PATH_MAX+1];
+    syslog(LOG_INFO,"HELO");
+    if((dir_src = opendir(source)) == NULL){
+        syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
+        return 1;
+    }
+        syslog(LOG_INFO,"HELO2");
+    if((dir_scan = scandir(scan,&dp_scan, isFileFilter, alphasort))<0){
+        syslog(LOG_INFO,"failed scandir on folder %s",scan);
+        return 1;
+    } 
+    syslog(LOG_INFO,"HELO3");
+    while((dp_src = readdir(dir_src))!=NULL){
+        if(isFileFilter(dp_src)){
+            file_found = 0;
+            for(c1=0;c1<dir_scan;c1++){
+                if(isFileFilter(dp_scan[c1])){
+                    if(strcmp(dp_scan[c1]->d_name, dp_src->d_name)==0){
+                        file_found = 1;
+                        break;
+                    }
+                }
+            }
+        }
+        if(file_found==0){
+            addFileToPath(path_src,source,dp_src->d_name);
+            addFileToPath(path_scan,scan,dp_src->d_name);
+            copyFileWriteRead(path_src, path_scan);
+            syslog(LOG_INFO, "File %s was not saved in scans, adding it to watch", dp_src->d_name);
+        }
+    }
+    
+    return 0;
+}
+
+bool CheckIfFirstFileISYounger(const char *path1, const char *path2){
+    struct stat attr1, attr2;
+    stat(path1, &attr1);
+    stat(path2, &attr2);
+    time_t modify_time1 = attr1.st_mtime; 
+    time_t modify_time2 = attr2.st_mtime; 
+    double seconds = difftime(modify_time1, modify_time2);
+    if(seconds > 0){return 0;}
+    else{return 1;}
+}
