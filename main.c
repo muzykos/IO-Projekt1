@@ -21,8 +21,7 @@
 
 #define SHA256_DIGEST_LENGTH 32
 #define MAX_LENGTH 1000
-#define O_CREAT 0x0040
-#define O_TRUNC 0x0200
+
 
 
 //Źródła
@@ -58,9 +57,6 @@ int main(int argc, char *argv[])
     time( &rawtime );
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
-
-
-
 
     //check argument amount
     if (argc < 3)
@@ -160,10 +156,10 @@ int main(int argc, char *argv[])
     // The loop
     while(1){
         syslog(LOG_INFO,"Daemon woke up");
-        // if(1==CheckModifications(source_full_path, target_full_path)){
-        //     syslog(LOG_INFO,"Function CheckModifaction() Failed");
-        //     exit(EXIT_FAILURE);
-        // }
+        if(1==CheckModifications(source_full_path, target_full_path)){
+            syslog(LOG_INFO,"Function CheckModifaction() Failed");
+            exit(EXIT_FAILURE);
+        }
         // if(1==CheckNewFiles(source_full_path, target_full_path)){
         //     syslog(LOG_INFO,"Function CheckModifaction() Failed");
         //     exit(EXIT_FAILURE);
@@ -306,7 +302,6 @@ void addFileToPath(char* path, const char* source, const char *filename){
 }
 
 bool copyFolderContent(const char* source, const char* target){
-    //    syslog(LOG_INFO,"PATH SOURCE: %s PATH TARGET: %s", source, target);
     // checking if target direcotry exists if not creating it
     DIR *tmp = opendir(target);
     if(tmp){
@@ -347,23 +342,6 @@ bool copyFolderContent(const char* source, const char* target){
             }
         }   
     }
-    // while((dp = readdir(dir))!=NULL){
-    //     //syslog(LOG_INFO,"KURWAMAC1: %s", dp->d_name);
-    //     if(isFileFilter(dp)){
-    //         addFileToPath(path_src,source,dp->d_name);
-    //         //syslog(LOG_INFO,"KURWAMAC2: %s", dp->d_name);
-    //         if(isDirectory(path_src)==1){
-    //             syslog(LOG_INFO,"THIS IS DIR: %s", path_src);
-    //         }else{
-    //             syslog(LOG_INFO,"THIS IS FILE: %s", path_src);
-    //             addFileToPath(path_trg,target,dp->d_name);
-    //             //syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
-    //             copyFileWriteRead(path_src, path_trg);            
-    //             }
-    //         }
-            
-    //     }   
-    syslog(LOG_INFO,"Doszło do konca");
     return 0;
 }
 
@@ -385,35 +363,45 @@ bool CheckModifications(const char* source, const char* scan){
     while((dp_scan = readdir(dir_scan))!=NULL){
         if(isFileFilter(dp_scan)){
             file_found = 0;
+            addFileToPath(path_scan,scan,dp_scan->d_name);  
             for(c1 = 0; c1<dir_src;c1++){
-                addFileToPath(path_src,source,dp_src[c1]->d_name); // adding files names to paths
-                //syslog(LOG_INFO, "%s, %s", dp_scan->d_name, dp_src[c1]->d_name);
-                if(isFileFilter(dp_src[c1])){  
-                    if(isFile(path_scan)==1&&(strcmp(dp_scan->d_name, dp_src[c1]->d_name)==0)){
-                        //syslog(LOG_INFO, "FOUND: %s, %s", dp_scan->d_name, dp_src[c1]->d_name);
-                        file_found = 1;
-                        addFileToPath(path_scan,scan,dp_scan->d_name);  // adding files names to paths
-                        if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
-                            syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
-                            copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                if(isFileFilter(dp_src[c1])){
+                    addFileToPath(path_src,source,dp_src[c1]->d_name); // adding files names to paths
+                    if(strcmp(dp_scan->d_name, dp_src[c1]->d_name)==0){  
+                        if(isFile(path_scan)==1){
+                            file_found = 1;    
+                            if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
+                                syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
+                                copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                            }
+                            break;
+                        }else if(recursive_option == 1 && isDirectory(path_scan)){
+                            file_found = 1;
+                            if(CheckModifications(path_src, path_scan)){
+                                syslog(LOG_INFO, "CheckModification() failed on location: %s", path_scan);
+                                return 1;
+                            }
                         }
-                        break;
-                    }else if(recursive_option == 1){
-                        // katalogi rekurencja
                     }
                 }
             }
             if(file_found==0){
-                syslog(LOG_INFO,"File %s was not found in the source, removing it from watch", dp_scan->d_name);
-                addFileToPath(path_scan,scan,dp_scan->d_name);
-                if(remove(path_scan)==-1){
-                    syslog(LOG_INFO, "File deletion failed"); 
-                    return 1;
+                if(isFile(path_scan)){
+                    syslog(LOG_INFO,"File %s was not found in the source, removing it from watch", dp_scan->d_name);
+                    addFileToPath(path_scan,scan,dp_scan->d_name);
+                    if(remove(path_scan)==-1){
+                        syslog(LOG_INFO, "File deletion failed"); 
+                        return 1;
+                    }
+                }else if(recursive_option == 1 && isDirectory(path_scan)){
+                    syslog(LOG_INFO,"Directory %s was not found in the source, removing it from watch", dp_scan->d_name);
+                    addFileToPath(path_scan, scan, dp_scan->d_name);
+                    if(removeDirectory(path_scan)){
+                        syslog(LOG_INFO, "Removing Directory %s failed", path_scan);
+                        return 1;
+                    }
                 }
             }
-        }
-        else{
-
         }
     }
     return 0;
