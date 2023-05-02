@@ -30,11 +30,15 @@
 int isFileFilter (const struct dirent *de);
 int check_existance (char *str,struct dirent **namelist,int size);
 int getFileCreationTime(const char *path);
+
 void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
 void addFileToPath(char* path, const char* source, const char *filename);
 void copyFileWriteRead(const char* source, const char* target);
 void SleepFun(int sleep_time);
+bool createFolder(const char *path);
+bool isFile(const char *path);
+bool isDirectory(const char *path);
 bool copyFolderContent(const char* source, const char* target);
 bool CheckIfFirstFileISYounger(const char *path1, const char *path2);
 bool CheckModifications(const char* source, const char* scan);
@@ -51,13 +55,65 @@ int main(int argc, char *argv[])
     time( &rawtime );
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
-    
+
+
+
+
     //check argument amount
     if (argc < 3)
     {
         perror("argument amount error");
         exit(EXIT_FAILURE);
     }
+
+    char source_full_path[PATH_MAX+1];
+    char target_full_path[PATH_MAX+1];
+    if(!realpath(argv[1], source_full_path)){
+        perror("SourcePath problem");
+        exit(EXIT_FAILURE);
+    }
+    if(!realpath(argv[2], target_full_path)){
+        perror("Target Path problem");
+        exit(EXIT_FAILURE);
+    }
+
+
+    if(isDirectory("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==0){
+        syslog(LOG_INFO,"==0NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==0){
+        syslog(LOG_INFO,"==0222NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+    if(isDirectory("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==1){
+        syslog(LOG_INFO,"==1NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==1){
+        syslog(LOG_INFO,"==1222NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+    if(isDirectory("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==-1){
+        syslog(LOG_INFO,"==-1NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/New_Folder")==-1){
+        syslog(LOG_INFO,"==-1222NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+        if(isDirectory("/home/sak/SO1/SO-Projekt1/test1/dad.txt")==1){
+        syslog(LOG_INFO,"==1 is dir dad.txt NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/dad.txt")==1){
+        syslog(LOG_INFO,"==1 is fil dad.txt 222NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+            if(isDirectory("/home/sak/SO1/SO-Projekt1/test1/dad.txt")==0){
+        syslog(LOG_INFO,"==0 is dir dad.txt NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/dad.txt")==0){
+        syslog(LOG_INFO,"==0 is fil dad.txt 222NIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGERNIGGER");
+    }
+
     //check whether argument 2 is a directory
     DIR* dir1 = opendir(argv[1]);
     if(dir1){
@@ -72,22 +128,17 @@ int main(int argc, char *argv[])
     DIR* dir2 = opendir(argv[2]);
     if(dir2){
     }else if(ENOENT == errno){
-        perror("directory 2 doesn't exist");
-        exit(EXIT_FAILURE);
+        createFolder(target_full_path);
     }else{
         perror("can't access directory 2");
         exit(EXIT_FAILURE);
     }
 
-    char source_full_path[PATH_MAX+1];
-    char target_full_path[PATH_MAX+1];
-    if(!realpath(argv[1], source_full_path)){
-        perror("Path problem");
-        exit(EXIT_FAILURE);
-    }
-    if(!realpath(argv[2], target_full_path)){
-        perror("Path problem");
-        exit(EXIT_FAILURE);
+
+
+
+    if(isFile("/home/sak/SO1/SO-Projekt1/test1/New_Folder")){
+        syslog(LOG_INFO,"CZEMU DO CHOILERY");
     }
 
     // error checking for signal creation
@@ -97,7 +148,8 @@ int main(int argc, char *argv[])
     }
 
     //create child
-    if(fork()!=0){
+    pid_t pid1 = fork();
+    if(pid1!=0){
         syslog(LOG_INFO,"Forking falied");
         exit(EXIT_FAILURE);
     }
@@ -148,6 +200,7 @@ int main(int argc, char *argv[])
 
     // The loop
     while(1){
+        syslog(LOG_INFO,"Daemon woke up");
         if(1==CheckModifications(source_full_path, target_full_path)){
             syslog(LOG_INFO,"Function CheckModifaction() Failed");
             exit(EXIT_FAILURE);
@@ -163,6 +216,7 @@ int main(int argc, char *argv[])
 
 
 void SleepFun(int sleep_time){
+    syslog(LOG_INFO,"Daemon went to sleep");
     int timer = 0;
     while(stop_signal==0 && timer < sleep_time){
         sleep(1);
@@ -173,11 +227,30 @@ void SleepFun(int sleep_time){
     }
 }
 
-int isFileFilter (const struct dirent *de){
-    if (strcmp (de->d_name, ".") == 0 || strcmp (de->d_name, "..") == 0)
+int isFileFilter(const struct dirent *de){
+    if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
         return 0;
     else
         return 1;
+}
+// 0 -> not directory
+// 1 -> directory
+// -1 -> error
+bool isDirectory(const char *path){
+    struct stat statbuf;
+    if(stat(path, &statbuf)!=0){
+        syslog(LOG_INFO,"Stat() function afiled with arg: %s", path);
+        exit(EXIT_FAILURE);
+    }
+    return S_ISDIR(statbuf.st_mode);
+}
+// 0 -> not file
+// 1 -> file
+// -1 -> error
+bool isFile(const char *path){
+    struct stat statbuf;
+    stat(path, &statbuf);
+    return S_ISREG(statbuf.st_mode);
 }
 
 int check_existance (char *str,struct dirent **namelist,int size){
@@ -214,7 +287,7 @@ void MD5_hash(const char *data, int len, char *md5buf){
 
 void copyFileWriteRead(const char* source, const char* target){
     
-    syslog(LOG_INFO,"Copying file: %s", source);
+    syslog(LOG_INFO,"Copying file: %s to %s", source, target);
     if(source==NULL){
         syslog(LOG_INFO,"Passed source path doesnt exist");
         exit(EXIT_FAILURE);
@@ -225,14 +298,15 @@ void copyFileWriteRead(const char* source, const char* target){
     }
     
     int fsource = open(source, O_RDONLY);
-    int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0664);
-    //syslog(LOG_INFO, "log %s OO %s", source, target);
+    int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+
+    syslog(LOG_INFO, "Kopiowanie pliku source: %s OO cel: %s", source, target);
     if(fsource==-1){
         syslog(LOG_INFO, "Could not open source file");
         exit(EXIT_FAILURE);
     }
     if(ftarget==-1){
-        syslog(LOG_INFO, "Could not open target file");
+        syslog(LOG_INFO, "Could not open target file %s", errno);
         exit(EXIT_FAILURE);
     }
     unsigned char buffer[MAX_LENGTH]; // buffer 
@@ -274,6 +348,21 @@ void addFileToPath(char* path, const char* source, const char *filename){
 }
 
 bool copyFolderContent(const char* source, const char* target){
+    // syslog(LOG_INFO,"PATH SOURCE: %s PATH TARGET: %s", source, target);
+    // // checking if target direcotry exists if not creating it
+    // DIR *tmp = opendir(target);
+    // if(tmp){
+    //     syslog(LOG_INFO,"Folder istnieje");
+    //     closedir(tmp);
+    // }else if(ENOENT == errno){
+    //     syslog(LOG_INFO,"Folder nie istnieje");
+    //     if(0!=createFolder(target)){
+    //         syslog(LOG_INFO,"Folder %s creation failed", target);
+    //         return 1;
+    //     }
+    // }else{
+    //     syslog(LOG_INFO,"Cannot access target directory %s", errno);
+    // }
     DIR *dir;
     struct dirent *dp;
     char path_src[PATH_MAX+1];
@@ -282,14 +371,41 @@ bool copyFolderContent(const char* source, const char* target){
         syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
         return 1;
     }
+    syslog(LOG_INFO,"Rozpoczynanie czytania aktalogu");
+    // while((dp = readdir(dir))!=NULL){
+    //     syslog(LOG_INFO,"Odnaleziony plik: %s", dp->d_name);
+    //     if(isFileFilter(dp)){
+    //         addFileToPath(path_src,source,dp->d_name);
+    //         addFileToPath(path_trg,target,dp->d_name);
+    //         if(isFile(path_src)){
+    //             syslog(LOG_INFO,"This is a file: %s and its target: %s", path_src, path_trg);
+    //             copyFileWriteRead(path_src, path_trg);
+    //         }else if(isDirectory(path_src)){
+    //             syslog(LOG_INFO,"This is a dir: %s trg: %s", path_src, path_trg);
+    //             if(0!=copyFolderContent(path_src, path_trg)){
+    //                 syslog(LOG_INFO,"Error while handling folder copying");
+    //                 return 1;
+    //             }
+    //         }
+    //     }   
+    // }
     while((dp = readdir(dir))!=NULL){
+        //syslog(LOG_INFO,"KURWAMAC1: %s", dp->d_name);
         if(isFileFilter(dp)){
             addFileToPath(path_src,source,dp->d_name);
-            addFileToPath(path_trg,target,dp->d_name);
-            //syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
-            copyFileWriteRead(path_src, path_trg);
+            //syslog(LOG_INFO,"KURWAMAC2: %s", dp->d_name);
+            if(isDirectory(path_src)==1){
+                syslog(LOG_INFO,"THIS IS DIR: %s", path_src);
+            }else{
+                syslog(LOG_INFO,"THIS IS FILE: %s", path_src);
+                addFileToPath(path_trg,target,dp->d_name);
+                //syslog(LOG_INFO, "src %s trg: %s", path_src, path_trg);
+                copyFileWriteRead(path_src, path_trg);            
+                }
+            }
+            
         }   
-    }
+    syslog(LOG_INFO,"Doszło do konca");
     return 0;
 }
 
@@ -312,17 +428,21 @@ bool CheckModifications(const char* source, const char* scan){
         if(isFileFilter(dp_scan)){
             file_found = 0;
             for(c1 = 0; c1<dir_src;c1++){
+                addFileToPath(path_src,source,dp_src[c1]->d_name); // adding files names to paths
                 //syslog(LOG_INFO, "%s, %s", dp_scan->d_name, dp_src[c1]->d_name);
-                if(isFileFilter(dp_src[c1])&&(strcmp(dp_scan->d_name, dp_src[c1]->d_name)==0)){
-                    //syslog(LOG_INFO, "FOUND: %s, %s", dp_scan->d_name, dp_src[c1]->d_name);
-                    file_found = 1;
-                    addFileToPath(path_src,source,dp_src[c1]->d_name);  // adding files names to paths
-                    addFileToPath(path_scan,scan,dp_scan->d_name);
-                    if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
-                        syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
-                        copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                if(isFileFilter(dp_src[c1])){  
+                    if(isFile(path_scan)==1&&(strcmp(dp_scan->d_name, dp_src[c1]->d_name)==0)){
+                        //syslog(LOG_INFO, "FOUND: %s, %s", dp_scan->d_name, dp_src[c1]->d_name);
+                        file_found = 1;
+                        addFileToPath(path_scan,scan,dp_scan->d_name);  // adding files names to paths
+                        if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
+                            syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
+                            copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                        }
+                        break;
+                    }else if(recursive_option == 1){
+                        // katalogi rekurencja
                     }
-                    break;
                 }
             }
             if(file_found==0){
@@ -366,8 +486,8 @@ bool CheckNewFiles(const char* source, const char* scan){
                 }
             }
         }
-        if(file_found==0){
-            addFileToPath(path_src,source,dp_src->d_name);
+        addFileToPath(path_src,source,dp_src->d_name);
+        if(file_found==0 && isFile(path_src)==1){
             addFileToPath(path_scan,scan,dp_src->d_name);
             syslog(LOG_INFO, "File %s was not saved in scans, adding it to watch", dp_src->d_name);
             copyFileWriteRead(path_src, path_scan);
@@ -386,4 +506,22 @@ bool CheckIfFirstFileISYounger(const char *path1, const char *path2){
     double seconds = difftime(modify_time1, modify_time2);
     if(seconds > 0){return 0;}
     else{return 1;}
+}
+
+bool createFolder(const char *path){
+    syslog(LOG_INFO,"Creating folder: %s", path);
+    pid_t pidx = fork();
+    if(pidx<0){
+        syslog(LOG_INFO,"execvp forking failed");
+        return 1;
+    }else if(pidx==0){
+        if(-1==execl("/bin/mkdir", "mkdir", path, NULL)){
+        syslog(LOG_INFO, "Folder creation error with execl()");
+        return 1;
+        }
+    }
+    syslog(LOG_INFO,"Created folder: %s", path);
+    //abort();
+    syslog(LOG_INFO,"After abort");
+    return 0;
 }
