@@ -34,13 +34,16 @@ void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
 void addFileToPath(char* path, const char* source, const char *filename);
 void copyFileWriteRead(const char* source, const char* target);
+void SleepFun(int sleep_time);
 bool copyFolderContent(const char* source, const char* target);
 bool CheckIfFirstFileISYounger(const char *path1, const char *path2);
 bool CheckModifications(const char* source, const char* scan);
 bool CheckNewFiles(const char* source, const char* scan);
 
-// z niechęcią to robie ale niech będzie na razie
+// global value for breaking sleep loop
 volatile int stop_signal = 0;
+// recursive option flag
+volatile int recursive_option = 0;
 
 int main(int argc, char *argv[])
 {
@@ -48,24 +51,6 @@ int main(int argc, char *argv[])
     time( &rawtime );
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
-
-    char source_full_path[PATH_MAX+1];
-    char target_full_path[PATH_MAX+1];
-    if(!realpath(argv[1], source_full_path)){
-        perror("Path problem");
-        exit(EXIT_FAILURE);
-    }
-    if(!realpath(argv[2], target_full_path)){
-        perror("Path problem");
-        exit(EXIT_FAILURE);
-    }
-    syslog(LOG_INFO, "");
-    syslog(LOG_INFO, "");
-    syslog(LOG_INFO, "spath: %s", source_full_path);
-    syslog(LOG_INFO, "tpath: %s", target_full_path);
-    //syslog(LOG_INFO, "file10 test1: %d", getFileCreationTime("test1/file10.txt"));
-    //syslog(LOG_INFO, "file10 test2: %d", getFileCreationTime("test2/file10.txt"));
-    CheckIfFirstFileISYounger("test1/plik10.txt","test2/plik10.txt");
     
     //check argument amount
     if (argc < 3)
@@ -94,8 +79,16 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-
-
+    char source_full_path[PATH_MAX+1];
+    char target_full_path[PATH_MAX+1];
+    if(!realpath(argv[1], source_full_path)){
+        perror("Path problem");
+        exit(EXIT_FAILURE);
+    }
+    if(!realpath(argv[2], target_full_path)){
+        perror("Path problem");
+        exit(EXIT_FAILURE);
+    }
 
     // error checking for signal creation
     if(signal(SIGUSR1, handlerSIGUSR1)!=0){
@@ -104,38 +97,21 @@ int main(int argc, char *argv[])
     }
 
     //create child
-    pid_t pid, sid;
-    pid = fork();
-    if(pid < 0){
+    if(fork()!=0){
+        syslog(LOG_INFO,"Forking falied");
         exit(EXIT_FAILURE);
     }
-    if (pid > 0)
-    {
-        exit(EXIT_SUCCESS);
-    }
-    sid = setsid();
-    if (sid < 0) {
+    if (setsid() < 0) {
         perror("Sid set error");
         syslog(LOG_INFO,"Sid setting error");
         exit(EXIT_FAILURE);
     }
-
-    // change direc to param
-    /*
-    if(chdir(argv[1]) < 0){
-        perror("chdir error");
-        syslog(LOG_INFO,"chdir error");
-        exit(EXIT_FAILURE);
-    }
-    */
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
     // specific init
-    int sleep_time = 5,timer;
-    int c;
-    opterr = 0;
+    int sleep_time = 5,c;
     while ((c = getopt(argc,argv,"t:")) != -1){
         switch (c)
         {
@@ -156,18 +132,10 @@ int main(int argc, char *argv[])
         }
     }
 
-    struct dirent **namelist_inp = NULL, **namelist_out = NULL;
-    int ndir_inp = 0, ndir_out = 0;
-    size_t it = 0;
-
     //required for hashing
     OpenSSL_add_all_algorithms();
     char md5[33];
-    // nie wiem czy to jest używane do czegos
-    char path_source[PATH_MAX];
-    char path_target[PATH_MAX];
-
-    syslog(LOG_INFO,"initialised successfully");
+    
 
     // copying all files to choosen directory on startup
     // this works 100%
@@ -176,20 +144,10 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    syslog(LOG_INFO,"initialised successfully");
 
     // The loop
     while(1){
-        // scaning for folders content
-        if((ndir_inp = scandir(argv[1],&namelist_inp, isFileFilter, alphasort))<0){
-            syslog(LOG_INFO,"failed scandir on folder %s",argv[1]);
-            exit(EXIT_FAILURE);
-        }
-        if((ndir_out = scandir(argv[2],&namelist_out, isFileFilter, alphasort))<0){
-            syslog(LOG_INFO,"failed scandir on folder %s",argv[2]);
-            exit(EXIT_FAILURE);
-        }
-        syslog(LOG_INFO,"Folders content scanned successfully");
-
         if(1==CheckModifications(source_full_path, target_full_path)){
             syslog(LOG_INFO,"Function CheckModifaction() Failed");
             exit(EXIT_FAILURE);
@@ -198,41 +156,21 @@ int main(int argc, char *argv[])
             syslog(LOG_INFO,"Function CheckModifaction() Failed");
             exit(EXIT_FAILURE);
         }
-
-        // if(1==CheckChanges(source_full_path, target_full_path)){
-        //     syslog(LOG_INFO,"Function CheckChanges() Failed");
-        //     exit(EXIT_FAILURE);
-        // }
-        
-        // for (it = 0; it < ndir_inp; it++){
-        //     // if(isFileFilter(namelist_inp[it])==1){
-        //     //     MD5_hash(namelist_inp[it]->d_name, strlen(namelist_inp[it]->d_name), md5);
-        //     //     syslog(LOG_INFO,"nazwa: %s hash: %s",namelist_inp[it]->d_name, md5);
-        //     // }
-            
-
-        //     if((check_existance(namelist_inp[it]->d_name,namelist_out,ndir_out)) == 1){
-        //         syslog(LOG_INFO,"file exists nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
-                
-        //     }else
-        //     {
-        //         syslog(LOG_INFO,"file doesn't exist nl[%2zu] %s\n", it, namelist_inp[it]->d_name);
-                
-        //         // todo odczytajplik istniejący i zapisz go w lokalizacji docelowej
-        //         // log o zapisaniu pliku
-        //     }
-        // }
-        timer = 0;
-        syslog(LOG_INFO,"Attempting Loop");
-        while(stop_signal==0 && timer < sleep_time){
-            sleep(1);
-            timer++;
-        }
-        if(stop_signal!=0){
-            stop_signal = 0;
-        }
+        SleepFun(sleep_time);
     }
     return 0;
+}
+
+
+void SleepFun(int sleep_time){
+    int timer = 0;
+    while(stop_signal==0 && timer < sleep_time){
+        sleep(1);
+        timer++;
+    }
+    if(stop_signal!=0){
+        stop_signal = 0;
+    }
 }
 
 int isFileFilter (const struct dirent *de){
@@ -335,7 +273,6 @@ void addFileToPath(char* path, const char* source, const char *filename){
         strcat(path, filename);     // adding filename to path
 }
 
-
 bool copyFolderContent(const char* source, const char* target){
     DIR *dir;
     struct dirent *dp;
@@ -382,8 +319,8 @@ bool CheckModifications(const char* source, const char* scan){
                     addFileToPath(path_src,source,dp_src[c1]->d_name);  // adding files names to paths
                     addFileToPath(path_scan,scan,dp_scan->d_name);
                     if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
-                        copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
                         syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
+                        copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
                     }
                     break;
                 }
@@ -397,6 +334,9 @@ bool CheckModifications(const char* source, const char* scan){
                 }
             }
         }
+        else{
+
+        }
     }
     return 0;
 }
@@ -406,17 +346,14 @@ bool CheckNewFiles(const char* source, const char* scan){
     struct dirent *dp_src, **dp_scan=NULL;
     int dir_scan, c1, file_found;
     char path_src[PATH_MAX+1], path_scan[PATH_MAX+1];
-    syslog(LOG_INFO,"HELO");
     if((dir_src = opendir(source)) == NULL){
         syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
         return 1;
     }
-        syslog(LOG_INFO,"HELO2");
     if((dir_scan = scandir(scan,&dp_scan, isFileFilter, alphasort))<0){
         syslog(LOG_INFO,"failed scandir on folder %s",scan);
         return 1;
     } 
-    syslog(LOG_INFO,"HELO3");
     while((dp_src = readdir(dir_src))!=NULL){
         if(isFileFilter(dp_src)){
             file_found = 0;
@@ -432,8 +369,8 @@ bool CheckNewFiles(const char* source, const char* scan){
         if(file_found==0){
             addFileToPath(path_src,source,dp_src->d_name);
             addFileToPath(path_scan,scan,dp_src->d_name);
-            copyFileWriteRead(path_src, path_scan);
             syslog(LOG_INFO, "File %s was not saved in scans, adding it to watch", dp_src->d_name);
+            copyFileWriteRead(path_src, path_scan);
         }
     }
     
