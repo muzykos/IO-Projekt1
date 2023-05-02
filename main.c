@@ -160,10 +160,10 @@ int main(int argc, char *argv[])
             syslog(LOG_INFO,"Function CheckModifaction() Failed");
             exit(EXIT_FAILURE);
         }
-        // if(1==CheckNewFiles(source_full_path, target_full_path)){
-        //     syslog(LOG_INFO,"Function CheckModifaction() Failed");
-        //     exit(EXIT_FAILURE);
-        // }
+        if(1==CheckNewFiles(source_full_path, target_full_path)){
+            syslog(LOG_INFO,"Function CheckModifaction() Failed");
+            exit(EXIT_FAILURE);
+        }
         SleepFun(sleep_time);
     }
     return 0;
@@ -324,9 +324,9 @@ bool copyFolderContent(const char* source, const char* target){
         syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
         return 1;
     }
-    syslog(LOG_INFO,"Start of reading the dir %s", source);
+    //syslog(LOG_INFO,"Start of reading the dir %s", source);
     while((dp = readdir(dir))!=NULL){
-        syslog(LOG_INFO,"Found file: %s", dp->d_name);
+        //syslog(LOG_INFO,"Found file: %s", dp->d_name);
         if(isFileFilter(dp)){
             addFileToPath(path_src,source,dp->d_name);
             addFileToPath(path_trg,target,dp->d_name);
@@ -433,10 +433,23 @@ bool CheckNewFiles(const char* source, const char* scan){
             }
         }
         addFileToPath(path_src,source,dp_src->d_name);
-        if(file_found==0 && isFile(path_src)==1){
-            addFileToPath(path_scan,scan,dp_src->d_name);
-            syslog(LOG_INFO, "File %s was not saved in scans, adding it to watch", dp_src->d_name);
-            copyFileWriteRead(path_src, path_scan);
+        addFileToPath(path_scan, scan, dp_src->d_name);
+        if(file_found==0 && isFileFilter(dp_src)){
+            if(isFile(path_src)){
+                syslog(LOG_INFO, "File %s wasn't present at last scan, adding it to watch", dp_src->d_name);
+                copyFileWriteRead(path_src, path_scan);
+            }
+            if(recursive_option == 1 && isDirectory(path_src)){
+                syslog(LOG_INFO, "Directory %s wasn't present at last scan, adding it to watch", dp_src->d_name);
+                if(createFolder(path_scan)){
+                    syslog(LOG_INFO, "%s Directory creation failed at CNF()", path_scan);
+                    return 1;
+                }
+                if(CheckNewFiles(path_src, path_scan)){
+                    syslog(LOG_INFO, "Funcation CNF() failed on directory: %s", path_src);
+                    return 1;
+                }
+            }
         }
     }
     
