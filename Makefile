@@ -1,9 +1,14 @@
 OBJ = main.o
 
-all: prog
-prog: $(OBJ)
-	gcc $(OBJ) -o prog -lssl -lcrypto
+
+all: dimon kreator
+dimon: $(OBJ)
+	gcc $(OBJ) -o dimon -lssl -lcrypto
+
+kreator: kreator.o
+	gcc kreator.o -o kreator
 
 .PHONY: clean
 clean:
-	rm -f *.o prog
+	rm -f *.o dimon
+	rm -f *.o kreator
