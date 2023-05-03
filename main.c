@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
     // error checking for signal creation
     if(signal(SIGUSR1, handlerSIGUSR1)!=0){
-        syslog(LOG_INFO,"failed signal function: %s",errno);
+        syslog(LOG_INFO,"failed signal function: %s",strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -119,12 +119,16 @@ int main(int argc, char *argv[])
 
     // specific init
     int sleep_time = 5,c;
-    while ((c = getopt(argc,argv,"t:")) != -1){
+    while ((c = getopt(argc,argv,"Rt:")) != -1){
         switch (c)
         {
         case 't':
             syslog(LOG_INFO,"Set Sleeptime to %d seconds",atoi(optarg));
             sleep_time = atoi(optarg);
+            break;
+        case 'R':
+            recursive_option = 1;
+            syslog(LOG_INFO,"Recursive option set to %d",recursive_option);
             break;
         case '?':
             if(optopt == 't')
@@ -274,7 +278,7 @@ void copyFileWriteRead(const char* source, const char* target){
             bp = buffer;
             while(bytes_read>0){
                 if((writtenChars = write(ftarget, bp, bytes_read))<0){
-                    syslog(LOG_INFO, "Write to file Failed: %s", perror);
+                    syslog(LOG_INFO, "Write to file Failed: %s", strerror(errno));
                     exit(EXIT_FAILURE);
                 }
                 //syslog(LOG_INFO, "Bytes read value: %d", bytes_read);
@@ -284,7 +288,7 @@ void copyFileWriteRead(const char* source, const char* target){
         }
         else if(bytes_read == 0){break;}
         else{
-            syslog(LOG_INFO, "Write to file Failed: %s", perror);
+            syslog(LOG_INFO, "Write to file Failed: %s", strerror(errno));
             exit(EXIT_FAILURE);
         }   
     }
@@ -314,7 +318,7 @@ bool copyFolderContent(const char* source, const char* target){
             return 1;
         }
     }else{
-        syslog(LOG_INFO,"Cannot access target directory %s", errno);
+        syslog(LOG_INFO,"Cannot access target directory %s", strerror(errno));
     }
     DIR *dir;
     struct dirent *dp;
