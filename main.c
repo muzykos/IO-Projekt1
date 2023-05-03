@@ -122,15 +122,15 @@ int main(int argc, char *argv[])
     while ((c = getopt(argc,argv,"Rt:")) != -1){
         switch (c)
         {
-        case 't':
+        case 't': //time argument
             syslog(LOG_INFO,"Set Sleeptime to %d seconds",atoi(optarg));
             sleep_time = atoi(optarg);
             break;
-        case 'R':
+        case 'R': //recursive argument
             recursive_option = 1;
             syslog(LOG_INFO,"Recursive option set to %d",recursive_option);
             break;
-        case '?':
+        case '?': //Failopt
             if(optopt == 't')
                 syslog(LOG_INFO, "Option -%c requires argument. ",optopt);
             else if(isprint(optopt))
