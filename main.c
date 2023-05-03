@@ -17,21 +17,15 @@
 #include <openssl/md5.h>
 #include <stdbool.h> 
 #include <time.h>
-
+#include <sys/wait.h>
+#include <sys/mman.h>
 
 #define SHA256_DIGEST_LENGTH 32
 #define MAX_LENGTH 1000
 
-
-
-//Źródła
-//https://4programmers.net/Forum/C_i_C++/289018-daemon_synchronizujacy_dwa_katalogi
-
-
 int isFileFilter (const struct dirent *de);
-int check_existance (char *str,struct dirent **namelist,int size);
 int getFileCreationTime(const char *path);
-
+long get_file_size(const char *filename);
 void MD5_hash(const char *data, int len, char *md5buf);
 void handlerSIGUSR1(int signum);
 void addFileToPath(char* path, const char* source, const char *filename);
@@ -45,16 +39,15 @@ bool CheckIfFirstFileISYounger(const char *path1, const char *path2);
 bool CheckModifications(const char* source, const char* scan);
 bool CheckNewFiles(const char* source, const char* scan);
 bool removeDirectory(const char *path);
+bool mapFile(const char *path_src, const char* path_dst);
 
 // global value for breaking sleep loop
 volatile int stop_signal = 0;
 // recursive option flag
-volatile int recursive_option = 1;
+volatile int recursive_option = 0;
 
 int main(int argc, char *argv[])
 {
-    time_t rawtime;
-    time( &rawtime );
     umask(0);
     openlog ("loglog", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
 
@@ -64,6 +57,33 @@ int main(int argc, char *argv[])
         perror("argument amount error");
         exit(EXIT_FAILURE);
     }
+    //check whether argument 2 is a directory
+    DIR* dir1 = opendir(argv[1]);
+    if(dir1){
+    }else if(ENOENT == errno){
+        perror("There is no directory such as arg1");
+        exit(EXIT_FAILURE);
+    }else{
+        perror("can't access directory such as arg1");
+        exit(EXIT_FAILURE);
+    }
+    //check whether arg 3 exists if it exist remove it and create it again
+    // if 
+    DIR* dir2 = opendir(argv[2]);
+    if(dir2){
+        if(removeDirectory(argv[2])){
+            syslog(LOG_INFO,"Folder %s removal failed", argv[2]);
+            return 1;
+        }
+    }else if(ENOENT != errno){
+        perror("can't access directory 2");
+        exit(EXIT_FAILURE);
+    }
+    if(createFolder(argv[2])){
+        syslog(LOG_INFO,"Folder %s creation failed on startup", argv[2]);
+        return 1;
+    }
+
 
     char source_full_path[PATH_MAX+1];
     char target_full_path[PATH_MAX+1];
@@ -76,25 +96,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    //check whether argument 2 is a directory
-    DIR* dir1 = opendir(argv[1]);
-    if(dir1){
-    }else if(ENOENT == errno){
-        perror("directory 1 doesn't exist");
-        exit(EXIT_FAILURE);
-    }else{
-        perror("can't access directory 1");
-        exit(EXIT_FAILURE);
-    }
-    //check whether arg 3 is directory
-    DIR* dir2 = opendir(argv[2]);
-    if(dir2){
-    }else if(ENOENT == errno){
-        createFolder(target_full_path);
-    }else{
-        perror("can't access directory 2");
-        exit(EXIT_FAILURE);
-    }
 
     // error checking for signal creation
     if(signal(SIGUSR1, handlerSIGUSR1)!=0){
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
 
     //create child
     pid_t pid1 = fork();
-    if(pid1!=0){
+    if(pid1==-1){
         syslog(LOG_INFO,"Forking falied");
         exit(EXIT_FAILURE);
     }
@@ -143,19 +144,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    //required for hashing
-    OpenSSL_add_all_algorithms();
-    char md5[33];
-    
-
     // copying all files to choosen directory on startup
-    // this works 100%
-    if(0!=copyFolderContent(source_full_path, target_full_path)){
-        syslog(LOG_INFO,"Error while handling folder copying");
-        exit(EXIT_FAILURE);
-    }
+    // if(0!=copyFolderContent(source_full_path, target_full_path)){
+    //     syslog(LOG_INFO,"Error while handling folder copying");
+    //     exit(EXIT_FAILURE);
+    // }
     
-    syslog(LOG_INFO,"initialised successfully");
+    syslog(LOG_INFO,"Initialised successfully");
 
     // The loop
     while(1){
@@ -186,12 +181,35 @@ void SleepFun(int sleep_time){
     }
 }
 
+int FileSize(const char *path){
+    if(path==NULL){
+        syslog(LOG_INFO,"Passed source path doesnt exist");
+        exit(EXIT_FAILURE);
+    }
+    int fsource = open(path, O_RDONLY);
+    if(fsource==-1){
+        syslog(LOG_INFO, "Could not open source file");
+        exit(EXIT_FAILURE);
+    }
+    size_t bytes_read, all_bytes_read=0;
+    unsigned char buffer[MAX_LENGTH];
+    while(1){
+        strcpy(buffer, "");
+        bytes_read = read(fsource, buffer, sizeof(buffer));
+        all_bytes_read+=bytes_read;
+        if(bytes_read==0){break;}
+    }
+    return all_bytes_read;
+}
+
 int isFileFilter(const struct dirent *de){
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
         return 0;
     else
         return 1;
 }
+
+
 // 0 -> not directory
 // 1 -> directory
 // -1 -> error
@@ -212,19 +230,6 @@ bool isFile(const char *path){
     return S_ISREG(statbuf.st_mode);
 }
 
-int check_existance (char *str,struct dirent **namelist,int size){
-    size_t i = 0;
-    for ( i = 0; i < size; i++)
-    {
-        
-        if ((strcmp(str,namelist[i]->d_name))==0)
-        {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 void handlerSIGUSR1(int signum){
     syslog(LOG_INFO,"SIGUSR1 handler activation");
     stop_signal = 1;
@@ -232,7 +237,7 @@ void handlerSIGUSR1(int signum){
 
 void MD5_hash(const char *data, int len, char *md5buf){
     EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    const EVP_MD *md = EVP_md5();
+    const EVP_MD *md = EVP_sha1();
     unsigned char md_value[EVP_MAX_MD_SIZE];
     unsigned int md_len, i;
     EVP_DigestInit_ex(mdctx, md, NULL);
@@ -260,11 +265,11 @@ void copyFileWriteRead(const char* source, const char* target){
     int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, mode);
 
     if(fsource==-1){
-        syslog(LOG_INFO, "Could not open source file");
+        syslog(LOG_INFO, "Could not open source file %s error: %s",source, strerror(errno));
         exit(EXIT_FAILURE);
     }
     if(ftarget==-1){
-        syslog(LOG_INFO, "Could not open target file %s", strerror(errno));
+        syslog(LOG_INFO, "Could not open target file %s error: %s",target, strerror(errno));
         exit(EXIT_FAILURE);
     }
     unsigned char buffer[MAX_LENGTH]; // buffer 
@@ -288,7 +293,7 @@ void copyFileWriteRead(const char* source, const char* target){
         }
         else if(bytes_read == 0){break;}
         else{
-            syslog(LOG_INFO, "Write to file Failed: %s", strerror(errno));
+            syslog(LOG_INFO, "Write to file Failed:: %s", strerror(errno));
             exit(EXIT_FAILURE);
         }   
     }
@@ -319,11 +324,13 @@ bool copyFolderContent(const char* source, const char* target){
         }
     }else{
         syslog(LOG_INFO,"Cannot access target directory %s", strerror(errno));
+        return 1;
     }
     DIR *dir;
     struct dirent *dp;
     char path_src[PATH_MAX+1];
     char path_trg[PATH_MAX+1];
+    int size;
     if((dir = opendir(source)) == NULL){
         syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
         return 1;
@@ -335,8 +342,15 @@ bool copyFolderContent(const char* source, const char* target){
             addFileToPath(path_src,source,dp->d_name);
             addFileToPath(path_trg,target,dp->d_name);
             if(isFile(path_src)){
-                //syslog(LOG_INFO,"Adding file to watch: %s", path_src);
-                copyFileWriteRead(path_src, path_trg);
+                syslog(LOG_INFO,"Adding file to watch: %s", path_src);
+                if(get_file_size(path_src)>10000000){
+                    if(mapFile(path_src, path_trg)){
+                        syslog(LOG_INFO,"Mapping failed");
+                        return 1;
+                    }
+                }else{
+                    copyFileWriteRead(path_src, path_trg);
+                }
             }else if(recursive_option==1 && isDirectory(path_src)){
                 syslog(LOG_INFO,"Adding folder to watch: %s", path_src);
                 if(copyFolderContent(path_src, path_trg)){
@@ -376,7 +390,15 @@ bool CheckModifications(const char* source, const char* scan){
                             file_found = 1;    
                             if(!CheckIfFirstFileISYounger(path_src, path_scan)){ // checking which file is younger
                                 syslog(LOG_INFO,"File %s was modificated, copying file from source", dp_scan->d_name);
-                                copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                                if(get_file_size(path_src)>10000000){
+                                    if(mapFile(path_src, path_scan)){
+                                    syslog(LOG_INFO,"Mapping failed");
+                                    return 1;
+                                    }
+                                }else{
+                                    copyFileWriteRead(path_src, path_scan);         // if src is younger them coping it to scan 
+                                }
+                                
                             }
                             break;
                         }else if(recursive_option == 1 && isDirectory(path_scan)){
@@ -390,16 +412,15 @@ bool CheckModifications(const char* source, const char* scan){
                 }
             }
             if(file_found==0){
+                addFileToPath(path_scan,scan,dp_scan->d_name);
                 if(isFile(path_scan)){
                     syslog(LOG_INFO,"File %s was not found in the source, removing it from watch", dp_scan->d_name);
-                    addFileToPath(path_scan,scan,dp_scan->d_name);
                     if(remove(path_scan)==-1){
                         syslog(LOG_INFO, "File deletion failed"); 
                         return 1;
                     }
                 }else if(recursive_option == 1 && isDirectory(path_scan)){
                     syslog(LOG_INFO,"Directory %s was not found in the source, removing it from watch", dp_scan->d_name);
-                    addFileToPath(path_scan, scan, dp_scan->d_name);
                     if(removeDirectory(path_scan)){
                         syslog(LOG_INFO, "Removing Directory %s failed", path_scan);
                         return 1;
@@ -437,28 +458,38 @@ bool CheckNewFiles(const char* source, const char* scan){
             }
         }
         addFileToPath(path_src,source,dp_src->d_name);
-        addFileToPath(path_scan, scan, dp_src->d_name);
-        if(file_found==0 && isFileFilter(dp_src)){
-            if(isFile(path_src)){
-                syslog(LOG_INFO, "File %s wasn't present at last scan, adding it to watch", dp_src->d_name);
-                copyFileWriteRead(path_src, path_scan);
-            }
-            if(recursive_option == 1 && isDirectory(path_src)){
-                syslog(LOG_INFO, "Directory %s wasn't present at last scan, adding it to watch", dp_src->d_name);
-                if(createFolder(path_scan)){
-                    syslog(LOG_INFO, "%s Directory creation failed at CNF()", path_scan);
-                    return 1;
+        addFileToPath(path_scan, scan,dp_src->d_name);
+        if(isFileFilter(dp_src)){
+            if(isDirectory(path_src) && recursive_option){
+                if(file_found==0){
+                    syslog(LOG_INFO,"Folder %s was not watched, adding it to watch", path_src);
+                    if(createFolder(path_scan)){
+                        syslog(LOG_INFO, "%s Directory creation failed at CNF()", path_scan);
+                        return 1;
+                    }
                 }
                 if(CheckNewFiles(path_src, path_scan)){
                     syslog(LOG_INFO, "Funcation CNF() failed on directory: %s", path_src);
                     return 1;
+                }                
+            }else if(file_found==0){
+                syslog(LOG_INFO,"File %s was not watched, adding it to watch", path_src);
+                if(get_file_size(path_src)>10000000){
+                    syslog(LOG_INFO,"Big file ahead!");
+                    if(mapFile(path_src, path_scan)){
+                        syslog(LOG_INFO,"Mapping failed");
+                        return 1;
+                    }
+                }else{
+                    copyFileWriteRead(path_src, path_scan);
                 }
             }
         }
+        
     }
-    
     return 0;
 }
+
 
 bool CheckIfFirstFileISYounger(const char *path1, const char *path2){
     struct stat attr1, attr2;
@@ -502,5 +533,56 @@ bool removeDirectory(const char *path){
     }
     syslog(LOG_INFO,"Folder removed: %s", path);
     while(wait(NULL) > 0);
+    return 0;
+}
+
+
+long get_file_size(const char *filename) {
+    struct stat file_status;
+    if (stat(filename, &file_status) < 0) {
+        return -1;
+    }
+    return file_status.st_size;
+}
+
+bool mapFile(const char *path_src, const char* path_dst){
+    int fdin, fdout;
+    int mode = 0x0777;
+    int size;
+    char *src, *dst;
+    struct stat statbuf;
+    // open source and destination files
+    if ((fdin = open (path_src, O_RDONLY)) < 0){
+        syslog(LOG_INFO,"can't open %s for reading", path_src);
+        return 1;
+    } 
+
+    if ((fdout = open (path_dst, O_RDWR | O_CREAT | O_TRUNC, 0777 )) < 0){
+        syslog(LOG_INFO,"can't create %s for writing", path_dst);
+        return 1;
+    }
+    // get the size of 
+    size = get_file_size(path_src);
+    if (lseek (fdout, size - 1, SEEK_SET) == -1){
+        syslog(LOG_INFO,"lseek error");
+        return 1;
+    }
+    if (write (fdout, "", 1) != 1){
+        printf ("write error");
+        return 1;
+    }
+    if ((src = mmap (0, size, PROT_READ, MAP_SHARED, fdin, 0)) == (caddr_t) -1){
+        printf ("mmap error for input");
+        return 1;
+    }
+    /* mmap the output file */
+    if ((dst = mmap (0, size, PROT_READ | PROT_WRITE,MAP_SHARED, fdout, 0)) == (caddr_t) -1){
+        printf ("mmap error for output");
+        return 1;
+    }
+
+    /* this copies the input file to the output file */
+    memcpy (dst, src, size);
+    syslog(LOG_INFO, "Succesfully mapign %s to %s", path_src, path_dst);
     return 0;
 }

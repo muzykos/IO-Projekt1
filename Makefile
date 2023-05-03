@@ -1,9 +1,9 @@
 OBJ = main.o
 
-all: prog
-prog: $(OBJ)
-	gcc $(OBJ) -o prog -lssl -lcrypto
+all: dimon
+dimon: $(OBJ)
+	gcc $(OBJ) -o dimon -lssl -lcrypto
 
 .PHONY: clean
 clean:
-	rm -f *.o prog
+	rm -f *.o dimon
