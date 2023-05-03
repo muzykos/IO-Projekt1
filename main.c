@@ -40,6 +40,7 @@ bool CheckModifications(const char* source, const char* scan);
 bool CheckNewFiles(const char* source, const char* scan);
 bool removeDirectory(const char *path);
 bool mapFile(const char *path_src, const char* path_dst);
+void CFRSendFile(const char *source, const char *dest);
 
 // global value for breaking sleep loop
 volatile int stop_signal = 0;
@@ -109,9 +110,8 @@ int main(int argc, char *argv[])
         syslog(LOG_INFO,"Forking falied");
         exit(EXIT_FAILURE);
     }
-    if (setsid() < 0) {
+    if (setsid()==-1) {
         perror("Sid set error");
-        syslog(LOG_INFO,"Sid setting error");
         exit(EXIT_FAILURE);
     }
     close(STDIN_FILENO);
@@ -143,12 +143,6 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
-
-    // copying all files to choosen directory on startup
-    // if(0!=copyFolderContent(source_full_path, target_full_path)){
-    //     syslog(LOG_INFO,"Error while handling folder copying");
-    //     exit(EXIT_FAILURE);
-    // }
     
     syslog(LOG_INFO,"Initialised successfully");
 
@@ -251,7 +245,7 @@ void MD5_hash(const char *data, int len, char *md5buf){
 
 void copyFileWriteRead(const char* source, const char* target){
     
-    syslog(LOG_INFO,"Copying file: %s to %s", source, target);
+    //syslog(LOG_INFO,"Copying file: %s to %s", source, target);
     if(source==NULL){
         syslog(LOG_INFO,"Passed source path doesnt exist");
         exit(EXIT_FAILURE);
@@ -297,7 +291,7 @@ void copyFileWriteRead(const char* source, const char* target){
             exit(EXIT_FAILURE);
         }   
     }
-    syslog(LOG_INFO,"Succesful copying of a file: %s", source);
+    //syslog(LOG_INFO,"Succesful copying of a file: %s", source);
     close(fsource);
     close(ftarget);
     return;
@@ -308,59 +302,6 @@ void addFileToPath(char* path, const char* source, const char *filename){
         strcat(path, source);       // adding source folder
         strcat(path, "/");          // adding '/'
         strcat(path, filename);     // adding filename to path
-}
-
-bool copyFolderContent(const char* source, const char* target){
-    // checking if target direcotry exists if not creating it
-    DIR *tmp = opendir(target);
-    if(tmp){
-        syslog(LOG_INFO,"Folder istnieje");
-        closedir(tmp);
-    }else if(ENOENT == errno){
-        syslog(LOG_INFO,"Folder nie istnieje");
-        if(0!=createFolder(target)){
-            syslog(LOG_INFO,"Folder %s creation failed in CFP()", target);
-            return 1;
-        }
-    }else{
-        syslog(LOG_INFO,"Cannot access target directory %s", strerror(errno));
-        return 1;
-    }
-    DIR *dir;
-    struct dirent *dp;
-    char path_src[PATH_MAX+1];
-    char path_trg[PATH_MAX+1];
-    int size;
-    if((dir = opendir(source)) == NULL){
-        syslog(LOG_INFO, "Dictionary doesn't exist: %s", source);
-        return 1;
-    }
-    //syslog(LOG_INFO,"Start of reading the dir %s", source);
-    while((dp = readdir(dir))!=NULL){
-        //syslog(LOG_INFO,"Found file: %s", dp->d_name);
-        if(isFileFilter(dp)){
-            addFileToPath(path_src,source,dp->d_name);
-            addFileToPath(path_trg,target,dp->d_name);
-            if(isFile(path_src)){
-                syslog(LOG_INFO,"Adding file to watch: %s", path_src);
-                if(get_file_size(path_src)>10000000){
-                    if(mapFile(path_src, path_trg)){
-                        syslog(LOG_INFO,"Mapping failed");
-                        return 1;
-                    }
-                }else{
-                    copyFileWriteRead(path_src, path_trg);
-                }
-            }else if(recursive_option==1 && isDirectory(path_src)){
-                syslog(LOG_INFO,"Adding folder to watch: %s", path_src);
-                if(copyFolderContent(path_src, path_trg)){
-                    syslog(LOG_INFO,"Error while handling folder copying");
-                    return 1;
-                }
-            }
-        }   
-    }
-    return 0;
 }
 
 bool CheckModifications(const char* source, const char* scan){
@@ -472,7 +413,7 @@ bool CheckNewFiles(const char* source, const char* scan){
                     syslog(LOG_INFO, "Funcation CNF() failed on directory: %s", path_src);
                     return 1;
                 }                
-            }else if(file_found==0){
+            }else if(file_found==0 && isFile(path_src)){
                 syslog(LOG_INFO,"File %s was not watched, adding it to watch", path_src);
                 if(get_file_size(path_src)>10000000){
                     syslog(LOG_INFO,"Big file ahead!");
@@ -489,7 +430,6 @@ bool CheckNewFiles(const char* source, const char* scan){
     }
     return 0;
 }
-
 
 bool CheckIfFirstFileISYounger(const char *path1, const char *path2){
     struct stat attr1, attr2;
@@ -535,7 +475,6 @@ bool removeDirectory(const char *path){
     while(wait(NULL) > 0);
     return 0;
 }
-
 
 long get_file_size(const char *filename) {
     struct stat file_status;
@@ -583,6 +522,35 @@ bool mapFile(const char *path_src, const char* path_dst){
 
     /* this copies the input file to the output file */
     memcpy (dst, src, size);
-    syslog(LOG_INFO, "Succesfully mapign %s to %s", path_src, path_dst);
+    //syslog(LOG_INFO, "Succesfully mapign %s to %s", path_src, path_dst);
     return 0;
+}
+void CFRSendFile(const char *source, const char *dest){
+    int fd_in, fd_out;
+    struct stat statt;
+    int len, ret, size;
+    fd_in = open(source, O_RDONLY);
+    if (fd_in == -1) {
+        perror("open (argv[1])");
+        exit(EXIT_FAILURE);
+    }
+    size = get_file_size(source);
+    fd_out = open(dest, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd_out == -1) {
+        perror("open (argv[2])");
+        exit(EXIT_FAILURE);
+    }
+    do{
+        ret = copy_file_range(fd_in, NULL, fd_out, NULL, size, 0);
+        if (ret == -1) {
+            perror("copy_file_range");
+            exit(EXIT_FAILURE);
+        }
+
+        len -= ret;
+    } while (len > 0 && ret > 0);
+
+    close(fd_in);
+    close(fd_out);
+    return;
 }

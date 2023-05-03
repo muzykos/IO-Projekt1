@@ -1,0 +1,71 @@
+    clock_t begin, end;
+    double time_spent;
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"Testing Grounds ");
+    syslog(LOG_INFO,"====================================================");
+
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"");
+
+    syslog(LOG_INFO,"Testing diffrent methods to copy 10MB file");
+    begin = clock();
+    copyFileWriteRead("/home/sak/TestFile10MB.txt", "/home/sak/test1");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for Read/Write to copy test 10MB File %f", time_spent);
+    begin = clock();
+    mapFile("/home/sak/TestFile10MB.txt", "/home/sak/test2");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for mmap to copy test 10MB File %f", time_spent);
+    begin = clock();
+    CFRSendFile("/home/sak/TestFile10MB.txt", "/home/sak/test3");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for copy_file_range to copy test 10MB File %f", time_spent);
+
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"");
+
+    syslog(LOG_INFO,"Testing diffrent methods to copy 100MB file");
+    begin = clock();
+    copyFileWriteRead("/home/sak/TestFile100MB.txt", "/home/sak/test4");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for Read/Write to copy test 100MB File %f", time_spent);
+    begin = clock();
+    mapFile("/home/sak/TestFile100MB.txt", "/home/sak/test5");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for mmap to copy test 100MB File %f", time_spent);
+    begin = clock();
+    CFRSendFile("/home/sak/TestFile100MB.txt", "/home/sak/test6");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for copy_file_range to copy test 100MB File %f", time_spent);
+
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"");
+
+    syslog(LOG_INFO,"Testing diffrent methods to copy 1000MB file");
+    begin = clock();
+    copyFileWriteRead("/home/sak/TestFile1000MB.txt", "/home/sak/test7");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for Read/Write to copy test 1000MB File %f", time_spent);
+    begin = clock();
+    mapFile("/home/sak/TestFile1000MB.txt", "/home/sak/test8");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for mmap to copy test 1000MB File %f", time_spent);
+    begin = clock();
+    CFRSendFile("/home/sak/TestFile1000MB.txt", "/home/sak/test9");
+    end = clock();
+    time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    syslog(LOG_INFO,"Time spent for copy_file_range to copy test 1000MB File %f", time_spent);
+
+    syslog(LOG_INFO,"");
+    syslog(LOG_INFO,"");
+
+    syslog(LOG_INFO,"====================================================");
