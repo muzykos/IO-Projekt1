@@ -1,5 +1,4 @@
-#include <sys/types.h>
-#include <sys/stat.h>
+#define _GNU_SOURCE
 #include <dirent.h>
 #include <libgen.h>
 #include <stdio.h>
@@ -19,8 +18,9 @@
 #include <time.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
-#define SHA256_DIGEST_LENGTH 32
 #define MAX_LENGTH 1000
 
 int isFileFilter (const struct dirent *de);
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     if (setsid()==-1) {
-        perror("Sid set error");
+        //perror("Sid set error");
         exit(EXIT_FAILURE);
     }
     close(STDIN_FILENO);
@@ -259,8 +259,14 @@ void copyFileWriteRead(const char* source, const char* target){
     int ftarget = open(target, O_WRONLY | O_CREAT | O_TRUNC, mode);
 
     if(fsource==-1){
-        syslog(LOG_INFO, "Could not open source file %s error: %s",source, strerror(errno));
-        exit(EXIT_FAILURE);
+        if(errno==EACCES){
+            syslog(LOG_INFO, "Permisson denied to file %s", source);
+            return;
+        }else{
+            syslog(LOG_INFO, "Could not open source file %s error: %s",source, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        
     }
     if(ftarget==-1){
         syslog(LOG_INFO, "Could not open target file %s error: %s",target, strerror(errno));
@@ -528,7 +534,8 @@ bool mapFile(const char *path_src, const char* path_dst){
 void CFRSendFile(const char *source, const char *dest){
     int fd_in, fd_out;
     struct stat statt;
-    int len, ret, size;
+    int len, size;
+    ssize_t ret;
     fd_in = open(source, O_RDONLY);
     if (fd_in == -1) {
         perror("open (argv[1])");
